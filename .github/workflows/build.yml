@@ -10,6 +10,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Validate SpringBoard callback threading
+        run: python3 scripts/test_tweak_threading.py
       - name: Install build tools
         run: brew install xcodegen dpkg ldid
       - name: Generate Xcode project and run tests
@@ -48,3 +50,4 @@ jobs:
             ios/build/Qingqiu-TrollStore.ipa
             tweak/QingqiuWallpaper/packages/*.deb
           if-no-files-found: error
+
