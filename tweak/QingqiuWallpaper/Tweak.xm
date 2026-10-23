@@ -25,10 +25,12 @@ static void QQWriteResult(BOOL ok, NSString *message) {
     QQTrace([NSString stringWithFormat:@"write-result ok=%@ message=%@", ok ? @"YES" : @"NO", message ?: @""]);
     NSDictionary *result = @{@"ok": @(ok), @"message": message ?: @"unknown", @"timestamp": @([[NSDate date] timeIntervalSince1970])};
     NSData *data = [NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
-    UIPasteboard *board = [UIPasteboard pasteboardWithName:QQResultBoard create:YES];
-    [board setData:data forPasteboardType:@"public.json"];
-    [[UIPasteboard generalPasteboard] setData:data forPasteboardType:@"public.json"];
-    notify_post(QQResultNotification.UTF8String);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        UIPasteboard *board = [UIPasteboard pasteboardWithName:QQResultBoard create:YES];
+        [board setData:data forPasteboardType:@"public.json"];
+        [[UIPasteboard generalPasteboard] setData:data forPasteboardType:@"public.json"];
+        notify_post(QQResultNotification.UTF8String);
+    });
 }
 
 static UIImage *QQImageForScreen(UIImage *image) {
@@ -86,9 +88,17 @@ static BOOL QQSetVariant(UIImage *image, NSInteger variant, NSString **failure) 
 
 static void QQHandleRequest(void) {
     QQTrace(@"request-received");
+    QQTrace(@"pasteboard-open-start");
     UIPasteboard *board = [UIPasteboard pasteboardWithName:QQRequestBoard create:NO];
+    QQTrace(@"pasteboard-open-done");
+    QQTrace(@"named-read-start");
     NSData *data = [board dataForPasteboardType:@"public.data"];
-    if (!data.length) data = [[UIPasteboard generalPasteboard] dataForPasteboardType:@"public.data"];
+    QQTrace([NSString stringWithFormat:@"named-read-done bytes=%lu", (unsigned long)data.length]);
+    if (!data.length) {
+        QQTrace(@"general-read-start");
+        data = [[UIPasteboard generalPasteboard] dataForPasteboardType:@"public.data"];
+        QQTrace([NSString stringWithFormat:@"general-read-done bytes=%lu", (unsigned long)data.length]);
+    }
     QQTrace([NSString stringWithFormat:@"request-data-bytes=%lu", (unsigned long)data.length]);
     UIImage *source = data.length ? [UIImage imageWithData:data] : nil;
     if (!source) { QQWriteResult(NO, @"Wallpaper payload missing or invalid"); return; }
@@ -96,18 +106,24 @@ static void QQHandleRequest(void) {
     UIImage *image = QQImageForScreen(source);
     if (!image) { QQWriteResult(NO, @"Could not prepare wallpaper image"); return; }
 
-    NSString *failure = nil;
-    if (!QQSetVariant(image, 0, &failure)) { QQWriteResult(NO, failure); return; }
-    if (!QQSetVariant(image, 1, &failure)) { QQWriteResult(NO, [NSString stringWithFormat:@"Home screen set; lock screen failed: %@", failure]); return; }
-    QQWriteResult(YES, @"Home and Lock screens updated");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        QQTrace(@"wallpaper-set-start");
+        NSString *failure = nil;
+        if (!QQSetVariant(image, 0, &failure)) { QQWriteResult(NO, failure); return; }
+        if (!QQSetVariant(image, 1, &failure)) { QQWriteResult(NO, [NSString stringWithFormat:@"Home screen set; lock screen failed: %@", failure]); return; }
+        QQTrace(@"wallpaper-set-done");
+        QQWriteResult(YES, @"Home and Lock screens updated");
+    });
 }
 
 %ctor {
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.springboard"]) return;
     QQTrace(@"ctor-loaded");
     int token = 0;
-    notify_register_dispatch(QQRequestNotification.UTF8String, &token, dispatch_get_main_queue(), ^(int value) {
+    notify_register_dispatch(QQRequestNotification.UTF8String, &token, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^(int value) {
+        QQTrace(@"request-callback-background");
         QQHandleRequest();
     });
 }
+
 
