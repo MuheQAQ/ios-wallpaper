@@ -33,7 +33,9 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/theos/theos.git "$RUNNER_TEMP/theos"
           git -C "$RUNNER_TEMP/theos" submodule update --init --depth 1 sdks
+          git clone --depth 1 https://github.com/theos/dm.pl.git "$RUNNER_TEMP/dm.pl"
           echo "THEOS=$RUNNER_TEMP/theos" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/dm.pl" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/theos/bin" >> "$GITHUB_PATH"
       - name: Build rootless tweak
         working-directory: tweak/QingqiuWallpaper
