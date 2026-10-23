@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
-        run: brew install xcodegen dpkg
+        run: brew install xcodegen dpkg ldid
       - name: Generate Xcode project and run tests
         working-directory: ios
         run: |
