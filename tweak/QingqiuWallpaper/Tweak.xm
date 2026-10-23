@@ -27,6 +27,7 @@ static void QQWriteResult(BOOL ok, NSString *message) {
     NSData *data = [NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
     UIPasteboard *board = [UIPasteboard pasteboardWithName:QQResultBoard create:YES];
     [board setData:data forPasteboardType:@"public.json"];
+    [[UIPasteboard generalPasteboard] setData:data forPasteboardType:@"public.json"];
     notify_post(QQResultNotification.UTF8String);
 }
 
@@ -87,6 +88,7 @@ static void QQHandleRequest(void) {
     QQTrace(@"request-received");
     UIPasteboard *board = [UIPasteboard pasteboardWithName:QQRequestBoard create:NO];
     NSData *data = [board dataForPasteboardType:@"public.data"];
+    if (!data.length) data = [[UIPasteboard generalPasteboard] dataForPasteboardType:@"public.data"];
     QQTrace([NSString stringWithFormat:@"request-data-bytes=%lu", (unsigned long)data.length]);
     UIImage *source = data.length ? [UIImage imageWithData:data] : nil;
     if (!source) { QQWriteResult(NO, @"Wallpaper payload missing or invalid"); return; }
