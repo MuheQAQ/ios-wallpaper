@@ -32,4 +32,3 @@ Build the tweak from `tweak/QingqiuWallpaper` with `make package THEOS_PACKAGE_S
 ## IPC
 
 The app writes image bytes to named pasteboard `com.qingqiu.wallpaper.payload` and posts Darwin notification `com.qingqiu.wallpaper.set-request`. SpringBoard writes a JSON `WallpaperSetResult` to `com.qingqiu.wallpaper.result`, then posts `com.qingqiu.wallpaper.set-result`.
-

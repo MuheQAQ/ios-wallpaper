@@ -1,0 +1,34 @@
+name: Qingqiu
+options:
+  bundleIdPrefix: com.qingqiu
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  Qingqiu:
+    type: application
+    platform: iOS
+    sources:
+      - path: QingqiuApp
+      - path: QingqiuShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.qingqiu.wallpaper
+        PRODUCT_NAME: Qingqiu
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: 清秋壁纸
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: 用于预览下载的壁纸
+        CODE_SIGNING_ALLOWED: NO
+  QingqiuTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: QingqiuTests
+    dependencies:
+      - target: Qingqiu
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.qingqiu.wallpaper.tests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO

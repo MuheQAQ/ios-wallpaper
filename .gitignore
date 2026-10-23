@@ -1,0 +1,7 @@
+ios/*.xcodeproj/
+ios/build/
+DerivedData/
+*.deb
+*.ipa
+.DS_Store
+.superpowers/

@@ -1,0 +1,43 @@
+name: Build iOS packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install xcodegen dpkg
+      - name: Generate Xcode project and run tests
+        working-directory: ios
+        run: |
+          xcodegen generate
+          xcodebuild test -project Qingqiu.xcodeproj -scheme Qingqiu -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO
+      - name: Package TrollStore IPA
+        working-directory: ios
+        run: |
+          xcodebuild -project Qingqiu.xcodeproj -scheme Qingqiu -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO
+          mkdir -p build/Payload
+          cp -R build/Build/Products/Release-iphoneos/Qingqiu.app build/Payload/
+          (cd build && /usr/bin/zip -qry Qingqiu-TrollStore.ipa Payload)
+      - name: Install Theos
+        run: |
+          git clone --depth 1 https://github.com/theos/theos.git "$RUNNER_TEMP/theos"
+          git clone --depth 1 https://github.com/theos/sdks.git "$RUNNER_TEMP/theos/sdks"
+          echo "THEOS=$RUNNER_TEMP/theos" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/theos/bin" >> "$GITHUB_PATH"
+      - name: Build rootless tweak
+        working-directory: tweak/QingqiuWallpaper
+        run: make package THEOS_PACKAGE_SCHEME=rootless
+      - name: Upload installable packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: qingqiu-ios-test-build
+          path: |
+            ios/build/Qingqiu-TrollStore.ipa
+            tweak/QingqiuWallpaper/packages/*.deb
+          if-no-files-found: error

@@ -1,0 +1,9 @@
+Package: com.qingqiu.wallpaper.tweak
+Name: Qingqiu Wallpaper Bridge
+Version: 0.1.0
+Architecture: iphoneos-arm
+Description: SpringBoard bridge for Qingqiu wallpaper app
+Maintainer: MuheQAQ
+Author: MuheQAQ
+Section: Tweaks
+Depends: mobilesubstrate
