@@ -9,14 +9,17 @@ struct WallpaperBridge {
         guard UIImage(data: imageData) != nil else { throw BridgeError.invalidImage }
         let pasteboard = UIPasteboard(name: UIPasteboard.Name(WallpaperProtocol.requestPasteboardName), create: true)
         pasteboard?.setData(imageData, forPasteboardType: "public.data")
-        guard pasteboard?.data(forPasteboardType: "public.data") != nil else { throw BridgeError.pasteboardUnavailable }
+        let general = UIPasteboard.general
+        general.setData(imageData, forPasteboardType: "public.data")
+        guard pasteboard?.data(forPasteboardType: "public.data") != nil || general.data(forPasteboardType: "public.data") != nil else { throw BridgeError.pasteboardUnavailable }
         let status = WallpaperProtocol.requestNotification.withCString { qq_notify_post($0) }
         guard status == 0 else { throw BridgeError.notificationFailed(Int32(status)) }
     }
 
     func readResult() -> WallpaperSetResult? {
         let pasteboard = UIPasteboard(name: UIPasteboard.Name(WallpaperProtocol.resultPasteboardName), create: false)
-        guard let data = pasteboard?.data(forPasteboardType: "public.json") else { return nil }
+        let data = pasteboard?.data(forPasteboardType: "public.json") ?? UIPasteboard.general.data(forPasteboardType: "public.json")
+        guard let data else { return nil }
         return try? JSONDecoder().decode(WallpaperSetResult.self, from: data)
     }
 
