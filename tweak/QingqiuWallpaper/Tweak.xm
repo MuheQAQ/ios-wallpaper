@@ -8,7 +8,21 @@ static NSString *const QQResultBoard = @"com.qingqiu.wallpaper.result";
 static NSString *const QQRequestNotification = @"com.qingqiu.wallpaper.set-request";
 static NSString *const QQResultNotification = @"com.qingqiu.wallpaper.set-result";
 
+static void QQTrace(NSString *event) {
+    NSString *line = [NSString stringWithFormat:@"%@ %@\n", [[NSDate date] description], event ?: @"unknown"];
+    NSString *path = @"/var/mobile/Library/Preferences/com.qingqiu.wallpaper.trace";
+    NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:path];
+    if (!handle) {
+        [[NSFileManager defaultManager] createFileAtPath:path contents:nil attributes:nil];
+        handle = [NSFileHandle fileHandleForWritingAtPath:path];
+    }
+    [handle seekToEndOfFile];
+    [handle writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+    [handle closeFile];
+}
+
 static void QQWriteResult(BOOL ok, NSString *message) {
+    QQTrace([NSString stringWithFormat:@"write-result ok=%@ message=%@", ok ? @"YES" : @"NO", message ?: @""]);
     NSDictionary *result = @{@"ok": @(ok), @"message": message ?: @"unknown", @"timestamp": @([[NSDate date] timeIntervalSince1970])};
     NSData *data = [NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
     UIPasteboard *board = [UIPasteboard pasteboardWithName:QQResultBoard create:YES];
@@ -70,8 +84,10 @@ static BOOL QQSetVariant(UIImage *image, NSInteger variant, NSString **failure) 
 }
 
 static void QQHandleRequest(void) {
+    QQTrace(@"request-received");
     UIPasteboard *board = [UIPasteboard pasteboardWithName:QQRequestBoard create:NO];
     NSData *data = [board dataForPasteboardType:@"public.data"];
+    QQTrace([NSString stringWithFormat:@"request-data-bytes=%lu", (unsigned long)data.length]);
     UIImage *source = data.length ? [UIImage imageWithData:data] : nil;
     if (!source) { QQWriteResult(NO, @"Wallpaper payload missing or invalid"); return; }
 
@@ -86,8 +102,10 @@ static void QQHandleRequest(void) {
 
 %ctor {
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.springboard"]) return;
+    QQTrace(@"ctor-loaded");
     int token = 0;
     notify_register_dispatch(QQRequestNotification.UTF8String, &token, dispatch_get_main_queue(), ^(int value) {
         QQHandleRequest();
     });
 }
+
