@@ -2,6 +2,7 @@
 #import <notify.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+#import <dlfcn.h>
 
 static NSString *const QQRequestBoard = @"com.qingqiu.wallpaper.payload";
 static NSString *const QQResultBoard = @"com.qingqiu.wallpaper.result";
@@ -48,6 +49,41 @@ static UIImage *QQImageForScreen(UIImage *image) {
     return output;
 }
 
+typedef void (*QQWallpaperImageLocationsFunction)(id image, NSInteger locations);
+
+static BOOL QQCallWallpaperService(UIImage *image, NSString **failure) {
+    // iOS 16 moved wallpaper writes behind SpringBoardServices/SpringBoardUI
+    // and no longer exposes the old SBWallpaperController setters.
+    NSArray<NSString *> *frameworks = @[
+        @"/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices",
+        @"/System/Library/PrivateFrameworks/SpringBoardUI.framework/SpringBoardUI"
+    ];
+    NSArray<NSString *> *symbols = @[
+        @"SBSetWallpaperImageForLocations",
+        @"SBSUIWallpaperSetImageAsWallpaperForLocations"
+    ];
+    for (NSString *framework in frameworks) {
+        void *handle = dlopen(framework.UTF8String, RTLD_LAZY | RTLD_LOCAL);
+        if (!handle) {
+            QQTrace([NSString stringWithFormat:@"wallpaper-dlopen-failed %@", framework]);
+            continue;
+        }
+        for (NSString *symbol in symbols) {
+            void *address = dlsym(handle, symbol.UTF8String);
+            QQTrace([NSString stringWithFormat:@"wallpaper-symbol %@ %@", symbol, address ? @"found" : @"missing"]);
+            if (!address) continue;
+            // Location bits are Lock Screen = 1, Home Screen = 2.
+            ((QQWallpaperImageLocationsFunction)address)(image, 3);
+            QQTrace([NSString stringWithFormat:@"wallpaper-symbol-called %@", symbol]);
+            dlclose(handle);
+            return YES;
+        }
+        dlclose(handle);
+    }
+    *failure = @"No supported wallpaper service symbol found on this iOS build";
+    return NO;
+}
+
 static BOOL QQSetVariant(UIImage *image, NSInteger variant, NSString **failure) {
     Class controllerClass = objc_getClass("SBWallpaperController");
     if (!controllerClass) controllerClass = objc_getClass("SBFWallpaperController");
@@ -86,6 +122,11 @@ static BOOL QQSetVariant(UIImage *image, NSInteger variant, NSString **failure) 
     return NO;
 }
 
+static BOOL QQSetWallpaper(UIImage *image, NSString **failure) {
+    if (QQCallWallpaperService(image, failure)) return YES;
+    return QQSetVariant(image, 0, failure) && QQSetVariant(image, 1, failure);
+}
+
 static void QQHandleRequest(void) {
     QQTrace(@"request-received");
     QQTrace(@"pasteboard-open-start");
@@ -109,8 +150,7 @@ static void QQHandleRequest(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         QQTrace(@"wallpaper-set-start");
         NSString *failure = nil;
-        if (!QQSetVariant(image, 0, &failure)) { QQWriteResult(NO, failure); return; }
-        if (!QQSetVariant(image, 1, &failure)) { QQWriteResult(NO, [NSString stringWithFormat:@"Home screen set; lock screen failed: %@", failure]); return; }
+        if (!QQSetWallpaper(image, &failure)) { QQWriteResult(NO, failure); return; }
         QQTrace(@"wallpaper-set-done");
         QQWriteResult(YES, @"Home and Lock screens updated");
     });
